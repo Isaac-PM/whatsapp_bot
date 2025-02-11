@@ -21,19 +21,95 @@ Como ejemplo práctico, nos colocaremos en el contexto de un restaurante llamado
 
 ## Bienvenida (envío del menú y banner)
 
-Primeramente, vamos a definir diferentes _states_ para las sesiones de los usuarios. Estos estados permitirán llevar un control del momento en la interacción en el que se encuentra el usuario, ya sea "bienvenida", "reservando", etc., y así poder realizar acciones específicas dependiendo del estado en el que se encuentre el usuario. Esta definición se hará con un enumerador, además de un diccionario que contendrá el número del usuario y el estado en el que se encuentra:
+Primeramente, vamos a definir diferentes _states_ para las sesiones de los usuarios. Estos estados permitirán llevar un control del momento en la interacción en el que se encuentra el usuario, ya sea "bienvenida", "reservando", etc., y así poder realizar acciones específicas dependiendo del estado en el que se encuentre el usuario. Esta definición se hará con un enumerador, además de una clase que contendrá el número del usuario y el estado en el que se encuentra:
 
 ```python
 import enum
+# ------------------------------------------------------------
+# Manejo de sesiones / Session handling
 class SessionState(enum.Enum):
     WELCOME = 1
-    RESERVING = 2
+    PROVIDING_NAME = 2
+    RESERVING = 3
+    PROVIDING_PEOPLE = 4
+    PROVIDING_TIME = 5
 
-user_session_states = {}
 
-def update_user_state(user_phone_number, state):
-    user_session_states[user_phone_number] = state
+class SessionData:
+    def __init__(self, user_name="", last_state=None):
+        self.user_name = user_name
+        self.last_state = last_state
+
+
+user_sessions = {}
+
+
+def update_session(user_id, user_name=None, state=None):
+    if user_id not in user_sessions:
+        user_sessions[user_id] = SessionData()
+    if user_name:
+        user_sessions[user_id].user_name = user_name
+    if state:
+        user_sessions[user_id].last_state = state
+
+
+def end_session(user_id):
+    send_message(user_id, MessageType.TEXT, "Esta conversación ha finalizado.")
+    user_sessions.pop(user_id, None)
 ```
 
+Además, se ampliará la función `send_message` para que pueda enviar texto, imágenes y documentos PDF:
+
+```python
+# ------------------------------------------------------------
+# Envío y recepción de mensajes / Sending and receiving messages
+class MessageType(enum.Enum):
+    TEXT = "text"
+    IMAGE = "image"
+    PDF = "document"
 
 
+def send_message(recipient, message_type, content, filename=None):
+    url = f"https://graph.facebook.com/{VERSION}/{PHONE_NUMBER_ID}/messages"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {ACCESS_TOKEN}",
+    }
+    data = {
+        "messaging_product": "whatsapp",
+        "to": recipient,
+        "type": message_type.value,
+    }
+
+    if message_type == MessageType.TEXT:
+        data["text"] = {"body": content}
+    elif message_type == MessageType.IMAGE:
+        data["image"] = {"link": content}
+    elif message_type == MessageType.PDF:
+        data["document"] = {"link": content, "filename": filename or "document.pdf"}
+
+    response = requests.post(url, headers=headers, json=data)
+    if response.status_code != 200:
+        print(f"Error {response.status_code}: {response.text}")
+    return response
+
+
+def fetch_pending_messages():
+    try:
+        response = requests.get(GLITCH_SERVER_URL)
+        response.raise_for_status()
+        return response.json()
+    except requests.RequestException as e:
+        print(f"Error fetching messages: {e}")
+        return []
+```
+
+El orden de desarrollo de las funciones complementarias será el siguiente:
+
+1. `process_message`, que se encargará de procesar los mensajes entrantes y responder a ellos, esta función será llamada desde el bucle principal del bot.
+2. `handle_welcome`, que se encargará de dar la bienvenida al usuario además de solicitar su nombre.
+3. `handle_name`, que se encargará de recibir el nombre del usuario y enviar el menú y el banner del restaurante.
+4. `handle_people`, que se encargará de recibir la cantidad de personas a servir.
+5. `handle_time`, que se encargará de recibir la hora de llegada del cliente.
+
+La explicación detallada de esta nueva iteración del bot se encuentra en el siguiente [enlace](https://www.youtube.com/watch?v=js6zXgxk0cQ).

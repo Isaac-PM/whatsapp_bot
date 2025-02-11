@@ -1,5 +1,7 @@
 from datetime import datetime, date
+from deepseek import ask_menu_question
 from dotenv import load_dotenv
+from enum import auto
 from persistence import session, Reservation
 import aiohttp
 import asyncio
@@ -43,11 +45,12 @@ log_config()
 # ------------------------------------------------------------
 # Manejo de sesiones / Session handling
 class SessionState(enum.Enum):
-    WELCOME = 1
-    PROVIDING_NAME = 2
-    RESERVING = 3
-    PROVIDING_PEOPLE = 4
-    PROVIDING_TIME = 5
+    WELCOME = auto()
+    PROVIDING_NAME = auto()
+    DOUBTS = auto()
+    RESERVING = auto()
+    PROVIDING_PEOPLE = auto()
+    PROVIDING_TIME = auto()
 
 
 class SessionData:
@@ -79,9 +82,10 @@ class MessageType(enum.Enum):
     TEXT = "text"
     IMAGE = "image"
     PDF = "document"
+    BUTTONS = "interactive"
 
 
-def send_message(recipient, message_type, content, filename=None):
+def send_message(recipient, message_type, content, filename=None, buttons=None):
     url = f"https://graph.facebook.com/{VERSION}/{PHONE_NUMBER_ID}/messages"
     headers = {
         "Content-Type": "application/json",
@@ -99,6 +103,12 @@ def send_message(recipient, message_type, content, filename=None):
         data["image"] = {"link": content}
     elif message_type == MessageType.PDF:
         data["document"] = {"link": content, "filename": filename or "document.pdf"}
+    elif message_type == MessageType.BUTTONS and buttons is not None:
+        data["interactive"] = {
+            "type": "button",
+            "body": {"text": content},
+            "action": {"buttons": buttons},
+        }
 
     response = requests.post(url, headers=headers, json=data)
     if response.status_code != 200:
@@ -114,6 +124,14 @@ def fetch_pending_messages():
     except requests.RequestException as e:
         print(f"Error fetching messages: {e}")
         return []
+
+
+def create_button(text):
+    MAX_BUTTON_LENGTH = 20
+    if len(text.value) > MAX_BUTTON_LENGTH:
+        raise ValueError(f"Button text exceeds {MAX_BUTTON_LENGTH} characters.")
+
+    return {"type": "reply", "reply": {"id": text.value, "title": text.value}}
 
 
 # ------------------------------------------------------------
@@ -132,18 +150,80 @@ def handle_welcome(sender):
     update_session(sender, state=SessionState.PROVIDING_NAME)
 
 
+class HandleNameResponse(enum.Enum):
+    YES = "Sí"
+    NO = "No"
+    DOUBTS = "Dudas sobre el menú"
+
+
 def handle_name(sender, name):
     update_session(sender, user_name=name, state=SessionState.RESERVING)
     send_message(
         sender,
-        MessageType.TEXT,
-        f"¡Gracias, {name}! Te adjuntamos nuestro menú para que puedas revisarlo.\n¿Deseas hacer una reserva? *(Sí/No)*",
+        MessageType.BUTTONS,
+        f"¡Gracias, {name}! Te adjuntamos nuestro menú para que puedas revisarlo.\n¿Deseas hacer una reserva?",
+        buttons=[
+            create_button(HandleNameResponse.YES),
+            create_button(HandleNameResponse.NO),
+            create_button(HandleNameResponse.DOUBTS),
+        ],
     )
     send_message(
         sender,
         MessageType.PDF,
         "https://cdn.glitch.global/d2fadd1f-132e-4618-a65f-af2f9d498989/Men%C3%BA%20Sabor%20Alegre.pdf?v=1738078432110",
         "Menú Sabor Alegre.pdf",
+    )
+
+
+def ask_for_doubts(sender):
+    send_message(
+        sender,
+        MessageType.TEXT,
+        "🤖 Hola, soy un asistente virtual. Responderé a tus dudas sobre el menú.\n¿En qué puedo ayudarte?",
+    )
+
+
+def handle_reserving(sender, text):
+    match (text):
+        case HandleNameResponse.YES.value:
+            send_message(
+                sender,
+                MessageType.TEXT,
+                "¿Para cuántas personas sería la reserva? *(Ejemplo: 2)*",
+            )
+            update_session(sender, state=SessionState.PROVIDING_PEOPLE)
+        case HandleNameResponse.NO.value:
+            send_message(
+                sender,
+                MessageType.TEXT,
+                "¡Entendido! Si cambias de opinión, no dudes en escribirnos. ¡Buen día!",
+            )
+            end_session(sender)
+        case HandleNameResponse.DOUBTS.value:
+            ask_for_doubts(sender)
+            update_session(sender, state=SessionState.DOUBTS)
+
+
+class HandleDoubtsResponse(enum.Enum):
+    FINISH = "Finalizar chat"
+    RESERVATION = "Hacer una reserva"
+    DOUBTS = "Dudas sobre el menú"
+
+
+def handle_doubts(sender, question, doubts_response=HandleDoubtsResponse.DOUBTS):
+    send_message(sender, MessageType.TEXT, "🤖 Un momento, por favor...")
+    response = ask_menu_question(question)
+    send_message(sender, MessageType.TEXT, response)
+    send_message(
+        sender,
+        MessageType.BUTTONS,
+        "¿Deseas hacer una reserva o tienes más dudas sobre el menú?",
+        buttons=[
+            create_button(HandleDoubtsResponse.FINISH),
+            create_button(HandleDoubtsResponse.RESERVATION),
+            create_button(HandleDoubtsResponse.DOUBTS),
+        ],
     )
 
 
@@ -198,29 +278,28 @@ def handle_time(sender, time_str):
 
 def process_message(sender, text):
     state = user_sessions.get(sender, SessionData()).last_state
-    if state == SessionState.PROVIDING_NAME:
-        handle_name(sender, text)
-    elif state == SessionState.RESERVING:
-        if text.lower() in ("sí", "si"):
-            send_message(
-                sender,
-                MessageType.TEXT,
-                "¿Para cuántas personas sería la reserva? *(Ejemplo: 2)*",
-            )
-            update_session(sender, state=SessionState.PROVIDING_PEOPLE)
-        else:
-            send_message(
-                sender,
-                MessageType.TEXT,
-                "¡Entendido! Si cambias de opinión, no dudes en escribirnos. ¡Buen día!",
-            )
-            end_session(sender)
-    elif state == SessionState.PROVIDING_PEOPLE:
-        handle_people(sender, text)
-    elif state == SessionState.PROVIDING_TIME:
-        handle_time(sender, text)
-    else:
-        handle_welcome(sender)
+    match (state):
+        case SessionState.PROVIDING_NAME:
+            handle_name(sender, text)
+        case SessionState.RESERVING:
+            handle_reserving(sender, text)
+        case SessionState.DOUBTS:
+            match (text):
+                case HandleDoubtsResponse.FINISH.value:
+                    end_session(sender)
+                case HandleDoubtsResponse.RESERVATION.value:
+                    update_session(sender, state=SessionState.RESERVING)
+                    handle_reserving(sender, HandleNameResponse.YES.value)
+                case HandleDoubtsResponse.DOUBTS.value:
+                    ask_for_doubts(sender)
+                case _:
+                    handle_doubts(sender, text)
+        case SessionState.PROVIDING_PEOPLE:
+            handle_people(sender, text)
+        case SessionState.PROVIDING_TIME:
+            handle_time(sender, text)
+        case _:
+            handle_welcome(sender)
 
 
 # ------------------------------------------------------------

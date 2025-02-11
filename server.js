@@ -24,11 +24,20 @@ app.post("/webhook", async (req, res) => {
 
     const message = req.body.entry?.[0]?.changes[0]?.value?.messages?.[0];
 
-    if (message?.type === "text") {
+    if (message?.type === "text" || message?.type === "interactive") {
+        let processedMessage = message;
+
+        if (message?.type === "interactive" && message?.interactive?.type === "button_reply") {
+            processedMessage = {
+                ...message,
+                text: { body: message.interactive.button_reply.title },
+            };
+        }
+
         // Use the mutex to ensure thread-safe access to the unprocessedMessages array
         await mutex.runExclusive(() => {
-            unprocessedMessages.push(message);
-            console.log("Message added to unprocessed messages list:", message);
+            unprocessedMessages.push(processedMessage);
+            console.log("Message added to unprocessed messages list:", processedMessage);
         });
 
         // Extract the business number to send the reply from it
