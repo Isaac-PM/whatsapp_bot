@@ -1,6 +1,6 @@
 # WhatsApp Bot - Restaurante "Sabor Alegre"
 
-<img src="assets/portada.webp" width="600px">
+<img src="assets/portada.webp" width="400px">
 
 > OpenAI. (2025). A smart and friendly bot that helps customers explore the menu and manage reservations.
 
