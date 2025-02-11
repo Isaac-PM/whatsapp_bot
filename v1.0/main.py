@@ -142,7 +142,7 @@ def handle_name(sender, name):
     send_message(
         sender,
         MessageType.PDF,
-        "https://cdn.glitch.global/d2fadd1f-132e-4618-a65f-af2f9d498989/Men%C3%BA%20Sabor%20Alegre.pdf?v=1738078432110",
+        "https://cdn.glitch.global/d2fadd1f-132e-4618-a65f-af2f9d498989/Men%C3%BA%20Sabor%20Alegre.pdf?v=1739306041177",
         "Menú Sabor Alegre.pdf",
     )
 
