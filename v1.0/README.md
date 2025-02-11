@@ -15,7 +15,7 @@ Como ejemplo práctico, nos colocaremos en el contexto de un restaurante llamado
 | --- | -------------- | --------------------------------------------------------------------------------------------------------------------------------- | --------------- | ------------------------------------------------- |
 | 1   | Ensalada César | Crujientes hojas de lechuga romana, aderezo César cremoso, crotones dorados y queso parmesano rallado. Ideal como entrada fresca. | 7.99            | Entrada                                           |
 
-> Importante, de momento se trabajará una versión totalmente secuencial para el procesamiento de mensajes. Esto podría hacer que las respuestas a los usuarios tarden más, pero simplifica el proceso de aprendizaje de la lógica general. Una implementación más eficiente se suministrará en la versión final.
+> Importante, de momento se trabajará una versión totalmente secuencial para el procesamiento de mensajes. Esto podría hacer que las respuestas a los usuarios tarden más, pero simplifica el proceso de aprendizaje de la lógica general.
 
 ---
 
@@ -112,4 +112,4 @@ El orden de desarrollo de las funciones complementarias será el siguiente:
 4. `handle_people`, que se encargará de recibir la cantidad de personas a servir.
 5. `handle_time`, que se encargará de recibir la hora de llegada del cliente.
 
-La explicación detallada de esta nueva iteración del bot se encuentra en el siguiente [enlace](https://www.youtube.com/watch?v=js6zXgxk0cQ).
+La explicación detallada de esta nueva iteración del bot se encuentra en el siguiente [enlace](TODO).

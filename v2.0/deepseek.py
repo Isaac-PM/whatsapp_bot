@@ -1,6 +1,3 @@
-# https://ollama.com/download
-# ollama run deepseek-r1:8b
-
 from ollama import chat
 from ollama import ChatResponse
 import fitz

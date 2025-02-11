@@ -12,4 +12,4 @@
 
 ---
 
-La explicación detallada de esta nueva iteración del bot se encuentra en el siguiente [enlace](https://www.youtube.com/watch?v=js6zXgxk0cQ).
+La explicación detallada de esta nueva iteración del bot se encuentra en el siguiente [enlace](TODO).
